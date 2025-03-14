@@ -1,0 +1,1 @@
+harmful_words_to_filter = ['suicide', 'self-harm', 'overdose', 'bomb', 'grenade', 'explosion', 'terrorism', 'cocaine', 'heroin', 'meth', 'LSD', 'ecstasy', 'narcotics', 'pornography', 'phishing', 'scam', 'fraud', 'identity theft', 'laundering', 'cyberbullying']
