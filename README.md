@@ -11,6 +11,14 @@ Requirements:
 - Security Measures
 - Usage metrics
 
+To run the FastAPI API service:
+
+1. clone the repository
+2. create a `.env` file with a **secret** field for the JWT hash key
+3. install the requirements by running `pip install -r requirements.txt`
+4. then run `fastapi dev main.py`
+5. access the SwaggerUI documentation of the API endpoints at http://127.0.0.1:8000/docs
+
 ### API Documentation
 
 #### 1. **POST** `/generate_social_media_ad`
