@@ -1,10 +1,15 @@
 # Copywriting Assistant
 
-Demo app of enterprise copywriting assistant, built using Amazon Bedrock
+Demo app of enterprise copywriting assistant, built using Amazon Bedrock & FastAPI.
 
 ## Week 5 submission:
 
 Requirements:
+
+- Working API service
+- API Documentation
+- Security Measures
+- Usage metrics
 
 ### API Documentation
 
