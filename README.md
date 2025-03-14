@@ -1,6 +1,8 @@
 # Copywriting Assistant
 
-Demo app of enterprise copywriting assistant, built using Amazon Bedrock
+Demo app of enterprise copywriting assistant, built using Amazon Bedrock.
+
+The `main` branch will contain the most up-to-date code. To find submissions for a specific week, please navigate to the respective branch.
 
 ## Week 5 submission:
 
