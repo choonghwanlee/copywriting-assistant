@@ -1,114 +1,129 @@
-from fastapi import FastAPI, HTTPException, Body, Depends
 from pydantic import BaseModel
-import boto3
+from llama_cpp import Llama
+from fastapi import FastAPI, HTTPException, Body, Depends
+import redis
+import hashlib
 import json
-import re
-from monitoring import MonitoringMiddleware
 
-from prompts import blog_post_prompt, social_media_prompt, email_campaign_prompt
-from filters import harmful_words_to_filter
-from auth import sign_jwt, UserSchema, UserLoginSchema, JWTBearer, check_user, users
-
+r = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
 
 app = FastAPI()
-app.add_middleware(MonitoringMiddleware)
 
-# Initalize Bedrock client
-bedrock = boto3.client(
-    service_name='bedrock-runtime',
-    region_name='us-west-2', 
+social_media_prompt = """Below is information about the company's product.
+Product Description: {product_description}
+Competitive Advantage: {competitive_advantage}
+Price: {price}
+
+You may also be given an image of the product for reference.
+
+Using the image and information provided, create a short, compelling social media ad caption that is catchy and has a clear call to action (i.e. subscribe to newsletter, find out more, buy now). Include just the generated ad caption, and nothing else."""
+
+blog_post_prompt = """Below is information about the company's product.
+Product Description: {product_description}
+Competitive Advantage: {competitive_advantage}
+Price: {price}
+
+You may also be given an image of the product for reference.
+
+Using the image and information provided, create a blog post that naturally & indirectly markets the product. Include just the generated blog post, and nothing else."""
+
+email_campaign_prompt = """Below is information about the company's product.
+Product Description: {product_description}
+Competitive Advantage: {competitive_advantage}
+Price: {price}
+
+You may also be given an image of the product for reference.
+
+Using the image and information provided, create a catchy email campaign that hooks potential buyers into buying a product or clicking into the company's website. Include just the generated email campaign, and nothing else."""
+
+# Initalize Llama.CPP client
+llm = Llama.from_pretrained(
+  repo_id="Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+  filename="qwen2.5-1.5b-instruct-q8_0.gguf",
+  chat_format="qwen",
 )
+
+def converse_qwen(system_prompt: str, user_content: str, max_len: int):
+    response = llm.create_chat_completion(
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": user_content
+            }
+        ],
+        temperature=0.1,
+        top_p=0.9,
+        max_tokens=max_len
+    )
+    return response['choices'][0]['message']['content']
 
 class PromptRequest(BaseModel):
     product_description: str
     competitive_advantage: str
     price: str
 
-# Function to check for harmful words
-def contains_harmful_words(text: str):
-    text_lower = text.lower()
-    return any(re.search(rf"\b{word}\b", text_lower) for word in harmful_words_to_filter)
-
-
-def format_llama(system: str, user: str):
-    return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-{system}<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-{user}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
-
-def invoke_llama(system_prompt: str, user_prompt: str, max_len: int):
-    body = {
-        "prompt": format_llama(system_prompt, user_prompt),
-        "max_gen_len": max_len,
-        "top_p": 0.9,
-        "temperature": 0.1,
-    }
-    model_id = "meta.llama3-1-70b-instruct-v1:0"
-    response = bedrock.invoke_model(
-        contentType='application/json',
-        modelId=model_id,
-        body=json.dumps(body)
-    )
-    # Decode the response body.
-    model_response = json.loads(response["body"].read())
-
-    # Extract and print the response text.
-    response_text = model_response["generation"]
-    return response_text
-
 @app.get("/")
 async def main():
     return {"message": "Hello World"}
 
-@app.post("/generate_social_media_ad", dependencies=[Depends(JWTBearer())])
+@app.post("/generate_social_media_ad")
 async def generate_social_media_ad(request: PromptRequest):
     try:
+        cache_key = hashlib.sha256(json.dumps(request.dict(), sort_keys=True).encode()).hexdigest()
+
+        # Check if the result is already in the cache
+        cached_result = r.get(cache_key)
+        if cached_result:
+            # If cache hit, return the cached response
+            return {"social_media_ad": cached_result}
+
         system_prompt = """You are a social media marketing expert helping a company create social media ads for their products."""
         user_prompt = social_media_prompt.format(product_description=request.product_description, competitive_advantage=request.competitive_advantage, price=request.price)
-        if contains_harmful_words(user_prompt):
-            raise HTTPException(status_code=400, detail="Input contains harmful content")
         max_len = 128
-        response_text = invoke_llama(system_prompt, user_prompt, max_len)
+        response_text = converse_qwen(system_prompt, user_prompt, max_len)
+        r.setex(cache_key, 3600, response_text)
         return {"social_media_ad": response_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/generate_blog_post", dependencies=[Depends(JWTBearer())])
+    
+@app.post("/generate_blog_post")
 async def generate_blog_post(request: PromptRequest):
     try:
+        cache_key = hashlib.sha256(json.dumps(request.dict(), sort_keys=True).encode()).hexdigest()
+
+        # Check if the result is already in the cache
+        cached_result = r.get(cache_key)
+        if cached_result:
+            # If cache hit, return the cached response
+            return {"blog_post": cached_result}
+
         system_prompt = """You are a content marketing expert helping a company create blog posts for their product."""
         user_prompt = blog_post_prompt.format(product_description=request.product_description, competitive_advantage=request.competitive_advantage, price=request.price)
-        if contains_harmful_words(user_prompt):
-            raise HTTPException(status_code=400, detail="Input contains harmful content")
         max_len = 2048
-        response_text = invoke_llama(system_prompt, user_prompt, max_len)
+        response_text = converse_qwen(system_prompt, user_prompt, max_len)
+        r.setex(cache_key, 3600, response_text)
+
         return {"blog_post": response_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-@app.post("/generate_email_campaign", dependencies=[Depends(JWTBearer())])
+
+@app.post("/generate_email_campaign")
 async def generate_email_campaign(request: PromptRequest):
     try:
+        cache_key = hashlib.sha256(json.dumps(request.dict(), sort_keys=True).encode()).hexdigest()
+
+        # Check if the result is already in the cache
+        cached_result = r.get(cache_key)
+        if cached_result:
+            # If cache hit, return the cached response
+            return {"blog_post": cached_result}
+
         system_prompt = """You are an email marketing expert helping a company create email campaigns for their product."""
         user_prompt = email_campaign_prompt.format(product_description=request.product_description, competitive_advantage=request.competitive_advantage, price=request.price)
-        if contains_harmful_words(user_prompt):
-            raise HTTPException(status_code=400, detail="Input contains harmful content")
         max_len = 512
-        response_text = invoke_llama(system_prompt, user_prompt, max_len)
+        response_text = converse_qwen(system_prompt, user_prompt, max_len)
+        r.setex(cache_key, 3600, response_text)
         return {"email_campaign": response_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-@app.post("/user/signup")
-async def create_user(user: UserSchema = Body(...)):
-    users.append(user)
-    return sign_jwt(user.email)
-
-@app.post("/user/login")
-async def user_login(user: UserLoginSchema = Body(...)):
-    if check_user(user):
-        return sign_jwt(user.email)
-    return {
-        "error": "Wrong login details!"
-    }
