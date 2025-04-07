@@ -3,13 +3,14 @@ from typing import Dict
 import jwt
 from decouple import config
 from pydantic import BaseModel, Field, EmailStr
+import os
 
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 users = [] ## demo in-memory user DB, to be replaced with real DB in later projects
 
-JWT_SECRET = config("secret")
+JWT_SECRET = os.environ.get("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

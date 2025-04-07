@@ -2,102 +2,82 @@
 
 Demo app of enterprise copywriting assistant, built using Amazon Bedrock & FastAPI.
 
-## Week 5 submission:
+## Week 6 submission:
 
 Requirements:
 
-- Working API service
-- API Documentation
-- Security Measures
-- Usage metrics
+- Working service with image and text processing
+- Architecture documentation
+- Performance Analysis
+- Deployment Guide
 
-To run the FastAPI API service:
+### API Service
 
-1. clone the repository
-2. create a `.env` file with a **secret** field for the JWT hash key
-3. install the requirements by running `pip install -r requirements.txt`
-4. then run `fastapi dev main.py`
-5. access the SwaggerUI documentation of the API endpoints at http://127.0.0.1:8000/docs
+We expand on Week 5's work by first adding multi-modal support for user image upload, then deploying the app via AWS Lambda for high scalability & availability. Now, users can not only add text descriptions of a product but also add reference images
 
-### API Documentation
+Specifically, we refactored the FastAPI endpoints to take multipart form data as input instead of a Pydantic object. This allows users to upload an image from their local directory as input to the POST requests. In addition, we make images optional, maintaining backwards compatibility with Week 5.
 
-#### 1. **POST** `/generate_social_media_ad`
+### Deployment Guide
 
-Generates a social media ad caption based on the given product details (max 128 tokens)
+To deploy the app to AWS Lambda, follow the following instructons.
 
-##### **Request Body**
+##### 1. Create a zip file of repository content
 
-```json
-{
-  "product_description": "string",
-  "competitive_advantage": "string",
-  "price": "string"
+First, run the following command:
+
+`pip3 install -t dependencies -r requirements.txt --platform manylinux2014_x86_64 --python-version 3.12 --only-binary=:all:`
+
+This creates a new folder called `dependencies` with all the dependencies installed. We specify platform to x86_64 to ensure it is consistent with AWS Lambda architecture.
+
+`(cd dependencies; zip ../aws_lambda_artifact.zip -r .)`
+
+This will zip the dependencies into a zip file called `aws_lambda_artifact.zip`. To this, we add our python files with the following comands:
+
+`zip aws_lambda_artifact.zip -u NAME_OF_FILE.py`, where NAME_OF_FILE refers to a .py file in our directory.
+
+##### 2. Create a new AWS Lambda Function
+
+In the AWS Lambda console, create a new function. Change the runtime to your Python runtime (in my case, it was Python 3.12), and under Additional Configurations, 'Enable Function URL' then set Auth type to NONE.
+
+After pressing 'Create function', a new AWS Lambda function will be created.
+
+Change the handler from the default value to `main.handler`, specifying the filename and variable name of our Mangum handler.
+
+##### 3. Upload zip file to AWS Lambda Function
+
+Finally, under 'Code Source', select upload from .zip file and upload the `aws_lambda_artifact.zip` you created in Step 1. This will load our repository into AWS Lambda
+
+Finally, in the 'ENVIRONMENT VARIABLES' section of the built-in IDE, add a new environment variable for the `JWT_SECRET` key that we use for authentication/hashing.
+
+You can now test the app as follows:
+
+Create a new account:
+
+```bash
+curl -X POST "YOUR_FUNCTION_URL/user/signup" \
+ -H "Content-Type: application/json" \
+ -d '{
+ "fullname": "Jason Lee",
+ "email": "jasonlee@gmail.com",
+"password": "aweakpassword"
 }
 ```
 
-##### **Response**
+This will return a 'access_token' variable. Use this in the Authorization Bearer of any POST request:
 
-```json
-{
-  "social_media_ad": "Generated ad content here"
-}
+```bash
+curl -X POST "YOUR_FUNCTION_URL/generate_social_media_ad" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
+  -F "product_description=Eco-friendly water bottle made from bamboo" \
+  -F "competitive_advantage=Biodegradable, stylish, and keeps drinks cold for 24 hours" \
+  -F "price=$29.99" \
+  -F "image=@/path/to/image.jpg"
 ```
 
-#### 2. **POST** `/generate_blog_post`
+### Performance Analysis
 
-Creates a blog post based on the provided product details (max 2048 tokens)
+AWS Lambda has built-in integration with AWS CloudWatch and AWS X-Ray, allowing us to easily monitor the performance of our application.
 
-##### **Request Body**
+This includes latency of each function call, total concurrent executions, error %, and a running log of each invocation.
 
-```json
-{
-  "product_description": "string",
-  "competitive_advantage": "string",
-  "price": "string"
-}
-```
-
-##### **Response**
-
-```json
-{
-  "blog_post": "Generated blog post here"
-}
-```
-
-#### 3. **POST** `/generate_email_campaign`
-
-Creates an email campaign based on the provided product details (max 512 tokens)
-
-##### **Request Body**
-
-```json
-{
-  "product_description": "string",
-  "competitive_advantage": "string",
-  "price": "string"
-}
-```
-
-##### **Response**
-
-```json
-{
-  "email_campaign": "Generated email campaign content here"
-}
-```
-
-### Error Handling
-
-- The API checks for harmful words in user inputs and rejects requests containing inappropriate content with a 400 status.
-- Any internal server errors return a 500 status with an error message.
-
-### Usage Logging
-
-- We monitor API usage, specifically # request and request latency, by adding a monitoring middleware to the FastAPI application.
-- This middleware then pushes metrics like # requests and latency to AWS CloudWatch where I can monitor metrics from a dashboard
-
-### Security
-
-- Use of Pydantic data model to validate input format prevents naive SQL attacks/injections.
-- JWT-based token authentication required on text generation API; limits access to only "logged in" users
+Our service has relatively low latency, with an average of roughly 700ms per invocation / request.
