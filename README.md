@@ -2,82 +2,37 @@
 
 Demo app of enterprise copywriting assistant, built using Amazon Bedrock & FastAPI.
 
-## Week 6 submission:
+## Week 9 submission:
 
-Requirements:
+Deliverables:
 
-- Working service with image and text processing
-- Architecture documentation
-- Performance Analysis
-- Deployment Guide
+Complete application (with frontend, authentication, backend)
+Architecture document
+User guide
+Security documentation
 
-### API Service
+### Architecture Document
 
-We expand on Week 5's work by first adding multi-modal support for user image upload, then deploying the app via AWS Lambda for high scalability & availability. Now, users can not only add text descriptions of a product but also add reference images
+1. Frontend: NextJS, hosted via Vercel
+2. Backend: FastAPI/AWS Lambda, hosted via AWS API Gateway
+3. LLM Usage: Amazon Bedrock (Multimodal Llama3.2)
+4. User Auth: JWT Tokens
+5. Monitoring: AWS CloudWatch
 
-Specifically, we refactored the FastAPI endpoints to take multipart form data as input instead of a Pydantic object. This allows users to upload an image from their local directory as input to the POST requests. In addition, we make images optional, maintaining backwards compatibility with Week 5.
+We did NOT build a separate database for this application. This means that results and user accounts are not persistent across sessions. Please keep this in mind as you use the app!
 
-### Deployment Guide
+### User Guide
 
-To deploy the app to AWS Lambda, follow the following instructons.
+Users can access the app via https://copywriter-app.vercel.app/, which directs them to a landing page where they can learn more.
 
-##### 1. Create a zip file of repository content
+They can then sign up or log in via our user authentication system. We gracefully handle errors such as mismatching passwords, missing fields, any server-side errors, etc.
 
-First, run the following command:
+Users are then redirected to the main dashboard. Here, they can either generate a new marketing copy (i.e. social media ad, blog post, etc.) by entering the product name, price, description, competitive advantage, and optionally a product image. For seamless user workflow, warnings are triggered + the submit button is disabled when mandatory fields are left blank or uploaded images exceed the max size of our Bedrock API.
 
-`pip3 install -t dependencies -r requirements.txt --platform manylinux2014_x86_64 --python-version 3.12 --only-binary=:all:`
+After submitting their request, users will receive a custom copy of their choice within a few seconds, which they can copy to clipboard or download as a .txt file.
 
-This creates a new folder called `dependencies` with all the dependencies installed. We specify platform to x86_64 to ensure it is consistent with AWS Lambda architecture.
+Users can also see past copies that they generated for later access. Again, this is not persistent by design so it'll go away with a hard refresh or new session.
 
-`(cd dependencies; zip ../aws_lambda_artifact.zip -r .)`
+### Security Documentation
 
-This will zip the dependencies into a zip file called `aws_lambda_artifact.zip`. To this, we add our python files with the following comands:
-
-`zip aws_lambda_artifact.zip -u NAME_OF_FILE.py`, where NAME_OF_FILE refers to a .py file in our directory.
-
-##### 2. Create a new AWS Lambda Function
-
-In the AWS Lambda console, create a new function. Change the runtime to your Python runtime (in my case, it was Python 3.12), and under Additional Configurations, 'Enable Function URL' then set Auth type to NONE.
-
-After pressing 'Create function', a new AWS Lambda function will be created.
-
-Change the handler from the default value to `main.handler`, specifying the filename and variable name of our Mangum handler.
-
-##### 3. Upload zip file to AWS Lambda Function
-
-Finally, under 'Code Source', select upload from .zip file and upload the `aws_lambda_artifact.zip` you created in Step 1. This will load our repository into AWS Lambda
-
-Finally, in the 'ENVIRONMENT VARIABLES' section of the built-in IDE, add a new environment variable for the `JWT_SECRET` key that we use for authentication/hashing.
-
-You can now test the app as follows:
-
-Create a new account:
-
-```bash
-curl -X POST "YOUR_FUNCTION_URL/user/signup" \
- -H "Content-Type: application/json" \
- -d '{
- "fullname": "Jason Lee",
- "email": "jasonlee@gmail.com",
-"password": "aweakpassword"
-}
-```
-
-This will return a 'access_token' variable. Use this in the Authorization Bearer of any POST request:
-
-```bash
-curl -X POST "YOUR_FUNCTION_URL/generate_social_media_ad" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
-  -F "product_description=Eco-friendly water bottle made from bamboo" \
-  -F "competitive_advantage=Biodegradable, stylish, and keeps drinks cold for 24 hours" \
-  -F "price=$29.99" \
-  -F "image=@/path/to/image.jpg"
-```
-
-### Performance Analysis
-
-AWS Lambda has built-in integration with AWS CloudWatch and AWS X-Ray, allowing us to easily monitor the performance of our application.
-
-This includes latency of each function call, total concurrent executions, error %, and a running log of each invocation.
-
-Our service has relatively low latency, with an average of roughly 700ms per invocation / request.
+We use JWT to authenticate our 3 AWS Bedrock API endpoints. JWT tokens are generated on successful user sign-up / log-in and last ~15 minutes, after which the token expires and users would need to log in again to refresh their token. This means that no one can access our APIs outside of the app's workflow, preventing security breaches and attacks. In addition, we enable CORS on our endpoints, allowing just the app's URL as the origin. This means that adversarial attackers cannot remotely exploit the login or signup API endpoints to obtain a JWT token.

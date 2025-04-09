@@ -35,23 +35,27 @@ def invoke_llama(system_prompt: str, user_prompt: str, max_len: int):
     return response_text
 
 def converse_llama(system_prompt: str, user_content: list, max_len: int):
-    response = bedrock.converse(
-        modelId="us.meta.llama3-2-90b-instruct-v1:0",
-        messages=[
-            {
-                'role': 'user',
-                'content': user_content
-            }
-        ],
-        system=[
-            {
-                'text': system_prompt
-            }
-        ],
-        inferenceConfig={
-            'maxTokens': max_len,
-            'temperature': 0.1,
-            'topP': 0.9
-        }
-    )
+    try:
+        response = bedrock.converse(
+                modelId="us.meta.llama3-2-90b-instruct-v1:0",
+                messages=[
+                    {
+                        'role': 'user',
+                        'content': user_content
+                    }
+                ],
+                system=[
+                    {
+                        'text': system_prompt
+                    }
+                ],
+                inferenceConfig={
+                    'maxTokens': max_len,
+                    'temperature': 0.1,
+                    'topP': 0.9
+                }
+            )
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return {"error": e}
     return response['output']['message']['content'][0]['text']
