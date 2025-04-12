@@ -2,37 +2,65 @@
 
 Demo app of enterprise copywriting assistant, built using Amazon Bedrock & FastAPI.
 
-## Week 9 submission:
+## Week 10 submission:
 
 Deliverables:
 
-Complete application (with frontend, authentication, backend)
-Architecture document
-User guide
-Security documentation
+- Security implementation (Security, Privacy)
+- Audit documentation
+- Compliance report
+- Final Presentation
 
-### Architecture Document
+### Getting Started
 
-1. Frontend: NextJS, hosted via Vercel
-2. Backend: FastAPI/AWS Lambda, hosted via AWS API Gateway
-3. LLM Usage: Amazon Bedrock (Multimodal Llama3.2)
-4. User Auth: JWT Tokens
-5. Monitoring: AWS CloudWatch
+Clone the repository and install the dependencies:
 
-We did NOT build a separate database for this application. This means that results and user accounts are not persistent across sessions. Please keep this in mind as you use the app!
+```bash
+git clone https://github.com/choonghwanlee/copywriting-assistant.git
+cd copywriting-assistant
+pip install -r requirements.txt
+```
 
-### User Guide
+To start the FastAPI server in development mode:
 
-Users can access the app via https://copywriter-app.vercel.app/, which directs them to a landing page where they can learn more.
+```bash
+fastapi dev main.py
+```
 
-They can then sign up or log in via our user authentication system. We gracefully handle errors such as mismatching passwords, missing fields, any server-side errors, etc.
+This will launch the app at http://localhost:8000. You can access the interactive API docs at http://localhost:8000/docs.
 
-Users are then redirected to the main dashboard. Here, they can either generate a new marketing copy (i.e. social media ad, blog post, etc.) by entering the product name, price, description, competitive advantage, and optionally a product image. For seamless user workflow, warnings are triggered + the submit button is disabled when mandatory fields are left blank or uploaded images exceed the max size of our Bedrock API.
+Make sure your AWS credentials are properly configured before running the app.
 
-After submitting their request, users will receive a custom copy of their choice within a few seconds, which they can copy to clipboard or download as a .txt file.
+Once the app is launched, go to http://localhost:8000/docs for a friendly UI to experiment with the app and see the AWS Bedrock Guardrail in action.
 
-Users can also see past copies that they generated for later access. Again, this is not persistent by design so it'll go away with a hard refresh or new session.
+### Security Implementation
 
-### Security Documentation
+To secure our app, we use:
 
-We use JWT to authenticate our 3 AWS Bedrock API endpoints. JWT tokens are generated on successful user sign-up / log-in and last ~15 minutes, after which the token expires and users would need to log in again to refresh their token. This means that no one can access our APIs outside of the app's workflow, preventing security breaches and attacks. In addition, we enable CORS on our endpoints, allowing just the app's URL as the origin. This means that adversarial attackers cannot remotely exploit the login or signup API endpoints to obtain a JWT token.
+1. JWT token authentication to disable API access to unauthenticated users.
+2. AWS Bedrock Guardrail to prevent:
+   - Prompt attacks (i.e. SQL injection, jailbreak prompts)
+   - Harmful categories (i.e. hate, sexually explicit content, etc.)
+   - Custom denied topics (i.e. political or election related content, medical or health claims)
+   - Profanity
+   - PII masking
+
+PII masking allows us to redact sensitive information from the Bedrock model, enabling privacy in our AI system.
+
+In addition, we want our copywriting assistant to not generate marketing copies that represent the brand in unfavorable ways. This not only includes hateful speech, profanity, etc., but also 1. misleading advertisement about the clinical effectiveness of a product 2. direct partisan support for specific candidates. Marketing copies that fall under these categories can tarnish the reputation of the brand, and we block these prompts with a custom message, "Sorry, the model cannot answer this question."
+
+### Audit Documentation
+
+We enable AWS CloudWatch logging/monitoring via the Watchtower package. This allows us to track successful/unsuccessful login attempts, and any prompts/responses that our AWS Bedrock Guardrail blocks. Monitoring allows us to easily aggregate safety/security data during audits. It also allows us to automatically trigger alerts/notifications when flags are raised repeatedly in a short time-span (which can indicate the presence of a malicious actor).
+
+Thus, we configure AWS CloudWatch Alerts to automatically send me an email if the logger raises a warning more than 5 times within a minute.
+
+### Compliance Documentation
+
+Our copywriting assistant is designed with compliance in mind, particularly with respect to key data protection regulations such as the General Data Protection Regulation (GDPR). We ensure that no personally identifiable information (PII) is stored or exposed during the generation process. All interactions with the model are stateless and ephemeral—PII is masked before being sent to the Bedrock model, and we do not log any raw input or output that contains user-submitted data unless it has been fully redacted.
+
+In addition to privacy regulations, our app aligns with the NIST AI Risk Management Framework (AI RMF) to ensure responsible AI use. This includes proactively managing risks related to safety, fairness, transparency, and accountability. Through the use of Amazon Bedrock Guardrails, we block harmful or inappropriate content as well as any prompt attack methods. We also maintain audit logs, human oversight in critical workflows, and mechanisms for flagging and reviewing questionable prompts. These practices support a trustworthy AI system that is not only technically secure but also aligned with emerging ethical standards.
+
+### Final Presentation
+
+[You can find the final presentation in the slides here](https://docs.google.com/presentation/d/1mo47NkAUcDz96n7Wwa3m395Mxicn8qAT2PPNHjpnxgc/edit?usp=sharing)
